@@ -1,0 +1,4 @@
+name "vsdir"
+description "A minimal D application."
+copyright "Copyright © 2015, idtong"
+authors "idtong"
