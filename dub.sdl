@@ -1,4 +1,6 @@
 name "vsdir"
-description "A minimal D application."
-copyright "Copyright © 2015, idtong"
+description "Generate items in vs project files."
+copyright "Copyright 2015, idtong"
 authors "idtong"
+license "MIT"
+dependency "wind" path="thirdparty/wind"
