@@ -1,5 +1,6 @@
 import std.stdio;
 import std.string;
+import std.array;
 import std.getopt;
 import std.file;
 import std.path;
@@ -7,6 +8,7 @@ import std.xml;
 import std.uuid;
 import std.process;
 import std.exception;
+import std.experimental.logger;
 import wind.string;
 
 /**
@@ -111,6 +113,29 @@ string GetVisualStudioDefaultTypeByFileExtension(string ext)
     return "None";
 }
 
+string[] possibleFilters(string filter)
+{
+    string[] ret;
+    string[] components = filter.split("\\");
+    foreach(i; 0..components.length)
+    {
+        ret ~= components[0..i+1].join("\\");
+    }
+    return ret;
+}
+
+unittest
+{
+    assert(possibleFilters("aaa\\bbb\\ccc\\ddd") ==
+           [
+               "aaa",
+               "aaa\\bbb",
+               "aaa\\bbb\\ccc",
+               "aaa\\bbb\\ccc\\ddd"
+           ]
+           );
+}
+
 void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bool withFilterInformation)
 {
     string s = cast(string)std.file.read(filename);
@@ -160,7 +185,7 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
         Element node = new Element(item.type);
         node.tag.attr["Include"] = item.relativePath;
 
-        if (withFilterInformation && item.filter != ".")
+        if (withFilterInformation && item.filter.length > 0)
         {
             node ~= new Element("Filter", item.filter);
 
@@ -176,14 +201,17 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
                 doc ~= filtersNode;
             }
 
-            if (item.filter !in filtermap)
+            foreach(string filter; possibleFilters(item.filter))
             {
-                filtermap[item.filter] = true;
-                Element filterNode = new Element("Filter");
-                filterNode.tag.attr["Include"] = item.filter;
-                Element uuidNode = new Element("UniqueIdentifier", "{" ~ randomUUID().toString() ~ "}");
-                filterNode ~= uuidNode;
-                filtersNode ~= filterNode;
+                if (filter !in filtermap)
+                {
+                    filtermap[filter] = true;
+                    Element filterNode = new Element("Filter");
+                    filterNode.tag.attr["Include"] = filter;
+                    Element uuidNode = new Element("UniqueIdentifier", "{" ~ randomUUID().toString() ~ "}");
+                    filterNode ~= uuidNode;
+                    filtersNode ~= filterNode;
+                }
             }
         }
 
@@ -217,26 +245,50 @@ bool isSubDir(string dir1, string dir2)
     return str != dir1 && !str.startsWith("..");
 }
 
-string helpmsg = r"
+string helpmsg = `
 vsdir will scan files under destdir recursively and add them to vs project
 with the directory structure up to the project dir.
 
-If filter prefix is given, the directory structure in vs project will be changed
-to: FilterPrefix\destdir\subdir1\subdri2\...
+If filter prefix is given, the new items in vs project will be changed to:
+FilterPrefix\destdir\subdir1\subdir2\...
+
+especially, if filter prefix is ".", then will be changed to:
+destdir\subdir1\subdir2\...
 
 If the folding environment variable is given, item path will no longer be
 relative to the project file path. Instead, it will become an absolute path.
 The path will fold by the path that the folding var points to, e.g.:
     $(SourceRoot)\filter\prefix\sub\dir\item.cpp
-";
+`;
+
+string emptyFilterFileContent = `<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+</Project>
+`;
+
+LogLevel StringLogLevelToLogLevel(string lvl)
+{
+    switch (lvl.toLower())
+    {
+        case "trace": return LogLevel.trace;
+        case "info": return LogLevel.info;
+        case "warning": return LogLevel.warning;
+        case "error": return LogLevel.error;
+        case "critical": return LogLevel.critical;
+        case "fatal": return LogLevel.fatal;
+        default: return LogLevel.warning;
+    }
+}
 
 void main(string[] argv){
     string filterPrefix;
     string foldspec;
+    string logLevel;
     auto helpInformation = getopt(argv, 
                                   "filter-prefix|P", "Set the common filer prefix for all added items", &filterPrefix,
                                   "folding-var", "Set the folding environment variable: var[:val]", &foldspec,
-                                  "test", "Test mode: output result contents to console", &testMode
+                                  "test", "Test mode: output result contents to console", &testMode,
+                                  "loglevel", "Set log level (trace, info, warning, error, critical, fatal)", &logLevel,
                                   );
     if (helpInformation.helpWanted || argv.length != 3)
     {
@@ -244,6 +296,8 @@ void main(string[] argv){
         write(helpmsg);
         return;
     }
+
+    globalLogLevel = StringLogLevelToLogLevel(logLevel);
    
     string projectFileName = argv[1].absolutePath();
     string destDir = argv[2].absolutePath();
@@ -278,19 +332,18 @@ void main(string[] argv){
         filterPrefix = relativePath(destDir, projectDir);
     }
 
-    if (filterPrefix == "*")
-        filterPrefix = "";
+    writeln("project:          ", projectFileName);
+    writeln("project filters:  ", projectFilterFileName);
+    writeln("fold variable:    ", foldVar);
+    writeln("fold directory:   ", foldDir);
+    writeln("dest dir:         ", destDir);
+    writeln("filter prefix     ", filterPrefix);
 
-    if (filterPrefix.length > 0 && !filterPrefix.endsWith('\\'))
-        filterPrefix ~= '\\';
-
-    writeln("project:        ", projectFileName);
-    writeln("project filters:", projectFilterFileName);
-    writeln("fold variable:  ", foldVar);
-    writeln("fold directory: ", foldDir);
-    writeln("dest dir:       ", destDir);
-    writeln("filter prefix   ", filterPrefix);
-
+    if (!exists(projectFilterFileName))
+    {
+        std.file.write(projectFilterFileName, emptyFilterFileContent);
+        writeln("created new project filter file");
+    }
 
     VisualStudioItem[] items;
     // get all files
@@ -299,8 +352,10 @@ void main(string[] argv){
     {
         if (isFile(f))
         {
-            string path = relativePath(f, destDir);
-            if (path[0] == '.')
+            trace(f);
+            string relaPath = relativePath(f, destDir);
+            string relaDir = dirName(relaPath);
+            if (relaPath[0] == '.')
             {
                 continue;
             }
@@ -311,8 +366,20 @@ void main(string[] argv){
                 "$(%s)\\%s".format(foldVar, relativePath(f, foldDir)):
                 relativePath(f, projectDir);
             item.type = GetVisualStudioDefaultTypeByFileExtension(extension(f));
-            item.filter = filterPrefix ~ dirName(relativePath(f, destDir));
+
+            // filterPrefix  relaDir   | item.filter
+            // -------------------------------------
+            // .             .         | 
+            // normal        .         | normal
+            // .             normal    | normal
+            // normal        normal    | normal\normal
+            item.filter = filterPrefix == "." ? (relaDir == "." ? "" : relaDir)
+                                              : (relaDir == "." ? filterPrefix : filterPrefix ~ "\\" ~ relaDir); 
+
             items ~= item;
+            trace("  ", item.type);
+            trace("  ", item.filter);
+            trace("  ", item.relativePath);
         }
     }
 

@@ -1,5 +1,5 @@
 <DProject>
- <ProjectGuid>{249D0A45-6929-43D1-ADC2-177FB8FDD7FD}</ProjectGuid>
+ <ProjectGuid>{6BDD8336-AE6F-4DD9-84BF-5C5778F46765}</ProjectGuid>
  <Config name="debug" platform="Win32">
   <obj>0</obj>
   <link>0</link>
@@ -33,7 +33,7 @@
   <useArrayBounds>0</useArrayBounds>
   <noboundscheck>0</noboundscheck>
   <useSwitchError>0</useSwitchError>
-  <useUnitTests>0</useUnitTests>
+  <useUnitTests>1</useUnitTests>
   <useInline>0</useInline>
   <release>0</release>
   <preservePaths>1</preservePaths>
@@ -53,9 +53,9 @@
   <cccmd>$(CC) -c</cccmd>
   <ccTransOpt>1</ccTransOpt>
   <program>$(DMDInstallDir)windows\bin\dmd.exe</program>
-  <imppath>&quot;source&quot;</imppath>
+  <imppath>&quot;source&quot; &quot;thirdparty\wind\source&quot;</imppath>
   <fileImppath />
-  <outdir>C:\src\vsdir\</outdir>
+  <outdir>C:\src\monalisa\vsdir\</outdir>
   <objdir>.dub/obj/debug/vsdir</objdir>
   <objname />
   <libname />
@@ -72,7 +72,7 @@
   <debuglevel>0</debuglevel>
   <debugids />
   <versionlevel>0</versionlevel>
-  <versionids>Have_vsdir</versionids>
+  <versionids>Have_vsdir Have_wind</versionids>
   <dump_source>0</dump_source>
   <mapverbosity>0</mapverbosity>
   <createImplib>0</createImplib>
@@ -93,7 +93,7 @@
   <libpaths />
   <deffile />
   <resfile />
-  <exefile>C:\src\vsdir\vsdir.exe</exefile>
+  <exefile>C:\src\monalisa\vsdir\vsdir.exe</exefile>
   <useStdLibPath>1</useStdLibPath>
   <cRuntime>1</cRuntime>
   <privatePhobos>0</privatePhobos>
