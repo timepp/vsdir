@@ -345,16 +345,20 @@ void main(string[] argv){
     string projectFilterFileName = projectFileName ~ ".filters";
     string projectDir = dirName(projectFileName);
 
-    if (foldVar && foldDir.length == 0)
+    if (foldVar)
     {
-        foldDir = environment.get(foldVar);
         if (foldDir.length == 0)
         {
-            writeln("cannot get folding-var value from process environment.");
-            return;
+            foldDir = environment.get(foldVar);
+            if (foldDir.length == 0)
+            {
+                writeln("cannot get folding-var value from process environment.");
+                return;
+            }
+            foldDir = foldDir.absolutePath();
         }
-        foldDir = foldDir.absolutePath();
-        if (!hasSameRoot(destDir, foldDir))
+
+        if (destDir.toLower().indexOf(foldDir.toLower()) == -1)
         {
             writeln("folding dir and dest dir must have the same root.");
             return;
@@ -408,7 +412,7 @@ void main(string[] argv){
             VisualStudioItem item;
             item.absolutePath = f;
             item.relativePath = foldVar?
-                "$(%s)\\%s".format(foldVar, relativePath(f, foldDir)):
+                "$(%s)%s".format(foldVar, f[foldDir.length..$]):
                 relativePath(f, projectDir);
             item.type = GetVisualStudioDefaultTypeByFileExtension(extension(f));
 
