@@ -246,19 +246,24 @@ bool isSubDir(string dir1, string dir2)
 }
 
 string helpmsg = `
-vsdir will scan files under destdir recursively and add them to vs project
-with the directory structure up to the project dir.
+vsdir recursively add all files under destdir into vs project, preserving the
+directory structure. This solves the problem that, although you can drag one 
+directory into vs project, the original directory structure will be lost.
 
-If filter prefix is given, the new items in vs project will be changed to:
-FilterPrefix\destdir\subdir1\subdir2\...
+By default, the filter(directory) structure for new files is relative to the
+project file. However, if a "filter prefix" is given, the filter structure
+will be relative to destdir, preceding with this filter prefix.
 
-especially, if filter prefix is ".", then will be changed to:
-destdir\subdir1\subdir2\...
-
-If the folding environment variable is given, item path will no longer be
-relative to the project file path. Instead, it will become an absolute path.
-The path will fold by the path that the folding var points to, e.g.:
-    $(SourceRoot)\filter\prefix\sub\dir\item.cpp
+By default, item paths are relative to project file. However, if the folding 
+environment variable is given, item path will instead become an absolute path.
+The path is folded by the path that the folding var points to, e.g.:
+    -----------------------------------------------
+    file path: c:\src\aaa.obj.amd64\bbb\ccc\ddd.cpp
+    fold var:  srcroot
+    fold dir:  c:\src\aaa
+    -----------------------------------------------
+    then item path will be: $(srcroot).obj.amd64\bbb\ccc\ddd.cpp
+This is very useful if you want to share the prject across machines/branches.
 `;
 
 string emptyFilterFileContent = `<?xml version="1.0" encoding="utf-8"?>
@@ -331,7 +336,7 @@ void main(string[] argv){
                                   );
     if (helpInformation.helpWanted || argv.length != 3)
     {
-        nicerGetoptPrinter("usage: vsdir.exe [options] projectfile destdir", helpInformation.options);
+        nicerGetoptPrinter("usage: vsdir.exe [options] projectfile destdir\n", helpInformation.options);
         write(helpmsg);
         return;
     }
