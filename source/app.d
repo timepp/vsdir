@@ -245,27 +245,6 @@ bool isSubDir(string dir1, string dir2)
     return str != dir1 && !str.startsWith("..");
 }
 
-string helpmsg = `
-vsdir recursively add all files under destdir into vs project, preserving the
-directory structure. This solves the problem that, although you can drag one 
-directory into vs project, the original directory structure will be lost.
-
-By default, the filter(directory) structure for new files is relative to the
-project file. However, if a "filter prefix" is given, the filter structure
-will be relative to destdir, preceding with this filter prefix.
-
-By default, item paths are relative to project file. However, if the folding 
-environment variable is given, item path will instead become an absolute path.
-The path is folded by the path that the folding var points to, e.g.:
-    -----------------------------------------------
-    file path: c:\src\aaa.obj.amd64\bbb\ccc\ddd.cpp
-    fold var:  srcroot
-    fold dir:  c:\src\aaa
-    -----------------------------------------------
-    then item path will be: $(srcroot).obj.amd64\bbb\ccc\ddd.cpp
-This is very useful if you want to share the prject across machines/branches.
-`;
-
 string emptyFilterFileContent = `<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
 </Project>
@@ -324,7 +303,60 @@ LogLevel StringLogLevelToLogLevel(string lvl)
     }
 }
 
-void main(string[] argv){
+void printGeneralUsage()
+{
+    string usage = `
+        usage: vsp <command> [command arguments]
+
+        supported command:
+            add
+
+        type:
+            vsp <command> --help
+        for detailed help of specific commands. `.unindent();
+
+    writeln(usage);
+}
+
+void main(string[] argv)
+{
+    if (argv.length >= 2)
+    {
+        switch(argv[1])
+        {
+        case "add":
+            return vspadd(argv[1..$]);
+        default:
+            break;
+        }
+    }
+
+    printGeneralUsage();
+}
+
+void vspadd(string[] argv)
+{
+    string helpmsg = `
+        recursively add all files under destdir into vs project, preserving the
+        directory structure. This solves the problem that, although you can drag one 
+        directory into vs project, the original directory structure will be lost.
+
+        By default, the filter(directory) structure for new files is relative to the
+        project file. However, if a "filter prefix" is given, the filter structure
+        will be relative to destdir, preceding with this filter prefix.
+
+        By default, item paths are relative to project file. However, if the folding 
+        environment variable is given, item path will instead become an absolute path.
+        The path is folded by the path that the folding var points to, e.g.:
+            -----------------------------------------------
+            file path: c:\src\aaa.obj.amd64\bbb\ccc\ddd.cpp
+            fold var:  srcroot
+            fold dir:  c:\src\aaa
+            -----------------------------------------------
+            then item path will be: $(srcroot).obj.amd64\bbb\ccc\ddd.cpp
+        This is very useful if you want to share the prject across machines/branches.
+        `.unindent();
+
     string filterPrefix;
     string foldspec;
     string logLevel;
@@ -336,7 +368,8 @@ void main(string[] argv){
                                   );
     if (helpInformation.helpWanted || argv.length != 3)
     {
-        nicerGetoptPrinter("usage: vsdir.exe [options] projectfile destdir\n", helpInformation.options);
+        nicerGetoptPrinter("usage: vsp add [options] <projectfile> <destdir>\n", helpInformation.options);
+        writeln();
         write(helpmsg);
         return;
     }

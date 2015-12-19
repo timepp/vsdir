@@ -1,5 +1,8 @@
-# vsdir
-batch add files to visual studio projects while preserving the directory structure.
+# vsp
+manipulate visual studio projects, such as:
+
+1. batch add files while preserving the directory structure
+2. ...
 
 # motivation
 Microsoft Visual Studio is a good tool to study existing code because:
@@ -8,22 +11,22 @@ Microsoft Visual Studio is a good tool to study existing code because:
 * easily find inside entire solution
 * ...
 
-However, It's hard to add many source files to visual studio project while keep their existing directory structure. vsdir is the tool to help this.
+However, It will waste some time to configure the project. e.g. it's hard to batch add files while keep their existing directory structure.
 
 # usage
 ``` Batchfile
-vsdir.exe [options] projectfile destdir
+vsp add projectfile destdir
 ```
-You can specify the "filter-prefix" used as common folder for all added items.
-The item path can also based on another variable, other than project directory, to make the generated project file sharable between peoples.
-Type `vsdir.exe --help` for more information.
+Batch add files while preserving the directory structure. 
 
-usage examples:
+Type `vsp --help` for more information.
+
+# examples
 
 This will add all files inside `C:\src\mona` to `mona.vcxproj`, preserving the folder structure.
 
 ``` Batchfile
-vsdir "C:\src\mona.vcxproj" C:\src\mona
+vsp add "C:\src\mona.vcxproj" C:\src\mona
 ```
 
 This will add all files inside `Z:\src\security\vault\VaultEngine` to `VaultEngine.vcxproj`, item paths in project file will like `$(TsSrc)\security\vault\VaultEngine\...`. The folder structure inside project are the same as they are in `Z:\src\security\vault\VaultEngine` folder.
