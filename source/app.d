@@ -161,15 +161,33 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
         }
     }
 
+    trace("existing files: ", existingFiles);
+    trace("items: ", items);
+
+    VisualStudioItem[] pendingAddItems;
+
     bool[string] filtermap;
     foreach (VisualStudioItem item; items)
     {
         if (item.absolutePath.toLower() in existingFiles)
         {
-            writeln("warning: file already exsits in project: ", item.relativePath);
+            writeln("file already exsits in project: ", item.relativePath);
             continue;
         }
 
+        pendingAddItems ~= item;
+    }
+
+    if (pendingAddItems.length == 0)
+    {
+        writeln("there is no new item to add.");
+        return;
+    }
+
+    foreach (VisualStudioItem item; pendingAddItems)
+    {
+        writeln("add: ", item.relativePath);
+        
         Element groupNode;
         if (item.type in specialElements)
         {
@@ -419,17 +437,18 @@ void vspadd(string[] argv)
     writeln("fold directory:   ", foldDir);
     writeln("dest dir:         ", destDir);
     writeln("filter prefix     ", filterPrefix);
+    writeln();
 
     if (!exists(projectFileName))
     {
         string projectFileContent = projectFileTemplate.replace("$(NAME)", baseName(projectFileName));
         std.file.write(projectFileName, projectFileContent);
-        writeln("created new project file");
+        writeln("created new project file: ", projectFileName);
     }
     if (!exists(projectFilterFileName))
     {
         std.file.write(projectFilterFileName, emptyFilterFileContent);
-        writeln("created new project filter file");
+        writeln("created new project filter file: ", projectFilterFileName);
     }
 
     VisualStudioItem[] items;
@@ -448,7 +467,7 @@ void vspadd(string[] argv)
             }
 
             VisualStudioItem item;
-            item.absolutePath = f;
+            item.absolutePath = buildNormalizedPath(f);
             item.relativePath = foldVar?
                 "$(%s)%s".format(foldVar, f[foldDir.length..$]):
                 relativePath(f, projectDir);
@@ -470,6 +489,13 @@ void vspadd(string[] argv)
         }
     }
 
+    writeln();
+    writeln("processing ", projectFileName);
     AddFilesToVisualStudioProject(items, projectFileName, false);
+    writeln("done.");
+
+    writeln();
+    writeln("processing ", projectFilterFileName);
     AddFilesToVisualStudioProject(items, projectFilterFileName, true);
+    writeln("done.");
 }
