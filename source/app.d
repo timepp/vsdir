@@ -8,6 +8,7 @@ import std.xml;
 import std.uuid;
 import std.process;
 import std.exception;
+import std.algorithm;
 import std.experimental.logger;
 import wind.string;
 
@@ -143,20 +144,49 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
 
     bool[string] existingFiles;
     Element[string] specialElements;
+    bool itemRemoved = false;
     // Find correct Elements
-    foreach (Element e; doc.elements)
+    foreach (ref Element e; doc.elements)
     {
         if (e.tag.name == "ItemGroup")
         {
+            string elemType;
             if (e.elements.length > 0)
             {
-                specialElements[e.elements[0].tag.name] = e;
+                elemType = e.elements[0].tag.name;
             }
 
-            foreach (Element fileNode; e.elements)
+            if (elemType.length > 0)
             {
-                string path = std.path.buildNormalizedPath(std.path.dirName(filename), fileNode.tag.attr["Include"]);
-                existingFiles[path.toLower()] = true;
+                specialElements[elemType] = e;
+            }
+
+            if (elemType != "ProjectConfiguration" && elemType != "Filter")
+            {
+                for (auto i = 0; i < e.items.length; )
+                {
+                    Element fileNode = cast(Element) e.items[i];
+                    if (fileNode !is null && "Include" in fileNode.tag.attr)
+                    {
+                        string relaPath = fileNode.tag.attr["Include"];
+                        string path = std.path.buildNormalizedPath(std.path.dirName(filename), fileNode.tag.attr["Include"]);
+                        if (indexOf(relaPath, '$') == -1 && !exists(path))
+                        {
+                            e.items = remove(e.items, i);
+                            itemRemoved = true;
+                            writeln("warning: file no longer exists. removed: ", relaPath);
+                        }
+                        else
+                        {
+                            existingFiles[path.toLower()] = true;
+                            i++;
+                        }
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                }
             }
         }
     }
@@ -171,17 +201,11 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
     {
         if (item.absolutePath.toLower() in existingFiles)
         {
-            writeln("file already exsits in project: ", item.relativePath);
+            trace("file already exsits in project: ", item.relativePath);
             continue;
         }
 
         pendingAddItems ~= item;
-    }
-
-    if (pendingAddItems.length == 0)
-    {
-        writeln("there is no new item to add.");
-        return;
     }
 
     foreach (VisualStudioItem item; pendingAddItems)
@@ -211,6 +235,10 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
             if ("Filter" in specialElements)
             {
                 filtersNode = specialElements["Filter"];
+                foreach (Element e; filtersNode.elements)
+                {
+                    filtermap[e.tag.attr["Include"]] = true;
+                }
             }
             else
             {
@@ -236,6 +264,12 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
         groupNode ~= node;
     }
 
+    if (pendingAddItems.length == 0 && !itemRemoved)
+    {
+        writeln("there is no new item to add or remove.");
+        return;
+    }
+
     string content = doc.prolog ~ join(doc.pretty(2), "\r\n") ~ doc.epilog;
 
     if (testMode)
@@ -243,6 +277,7 @@ void AddFilesToVisualStudioProject(VisualStudioItem[] items, string filename, bo
         writeln("new content in file: " ~ filename);
         writeln("=========================================================================================");
         writeln(content);
+        writeln("=========================================================================================");
         writeln("=========================================================================================");
     }
     else
