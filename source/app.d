@@ -6,6 +6,7 @@ import std.file;
 import std.path;
 import std.xml;
 import std.uuid;
+import std.regex;
 import std.process;
 import std.exception;
 import std.algorithm;
@@ -394,6 +395,9 @@ void vspadd(string[] argv)
         directory structure. This solves the problem that, although you can drag one 
         directory into vs project, the original directory structure will be lost.
 
+        Include/exclude patterns can be used to filter files. exclude pattern take
+        higher priority.
+
         By default, the filter(directory) structure for new files is relative to the
         project file. However, if a "filter prefix" is given, the filter structure
         will be relative to destdir, preceding with this filter prefix.
@@ -413,9 +417,13 @@ void vspadd(string[] argv)
     string filterPrefix;
     string foldspec;
     string logLevel;
+    string includePattern;
+    string excludePattern;
     auto helpInformation = getopt(argv, 
                                   "filter-prefix|P", "Set the common filer prefix for all added items", &filterPrefix,
                                   "folding-var", "Set the folding environment variable: var[:val]", &foldspec,
+                                  "include-pattern|I", "If specified, only files match(regex) the given pattern will be added", &includePattern,
+                                  "exclude-pattern|E", "If specified, files match(regex) the given pattern won't be added", &excludePattern,
                                   "test", "Test mode: output result contents to console", &testMode,
                                   "loglevel", "Set log level (trace, info, warning, error, critical, fatal)", &logLevel,
                                   );
@@ -428,6 +436,10 @@ void vspadd(string[] argv)
     }
 
     globalLogLevel = StringLogLevelToLogLevel(logLevel);
+
+
+    auto reInclude = regex(includePattern);
+    auto reExclude = regex(excludePattern);
    
     string projectFileName = argv[1].absolutePath();
     string destDir = argv[2].absolutePath();
@@ -472,6 +484,8 @@ void vspadd(string[] argv)
     writeln("fold directory:   ", foldDir);
     writeln("dest dir:         ", destDir);
     writeln("filter prefix     ", filterPrefix);
+    writeln("include pattern   ", includePattern);
+    writeln("exclude pattern   ", excludePattern);
     writeln();
 
     if (!exists(projectFileName))
@@ -491,37 +505,38 @@ void vspadd(string[] argv)
     auto files = dirEntries(destDir, SpanMode.depth);
     foreach (string f; files)
     {
-        if (isFile(f))
+        if (excludePattern.length > 0 && matchFirst(f, reExclude)) continue;
+        if (includePattern.length > 0 && !matchFirst(f, reInclude)) continue;
+        if (!isFile(f)) continue;
+        
+        trace(f);
+        string relaPath = relativePath(f, destDir);
+        string relaDir = dirName(relaPath);
+        if (relaPath[0] == '.')
         {
-            trace(f);
-            string relaPath = relativePath(f, destDir);
-            string relaDir = dirName(relaPath);
-            if (relaPath[0] == '.')
-            {
-                continue;
-            }
-
-            VisualStudioItem item;
-            item.absolutePath = buildNormalizedPath(f);
-            item.relativePath = foldVar?
-                "$(%s)%s".format(foldVar, f[foldDir.length..$]):
-                relativePath(f, projectDir);
-            item.type = GetVisualStudioDefaultTypeByFileExtension(extension(f));
-
-            // filterPrefix  relaDir   | item.filter
-            // -------------------------------------
-            // .             .         | 
-            // normal        .         | normal
-            // .             normal    | normal
-            // normal        normal    | normal\normal
-            item.filter = filterPrefix == "." ? (relaDir == "." ? "" : relaDir)
-                                              : (relaDir == "." ? filterPrefix : filterPrefix ~ "\\" ~ relaDir); 
-
-            items ~= item;
-            trace("  ", item.type);
-            trace("  ", item.filter);
-            trace("  ", item.relativePath);
+            continue;
         }
+
+        VisualStudioItem item;
+        item.absolutePath = buildNormalizedPath(f);
+        item.relativePath = foldVar?
+            "$(%s)%s".format(foldVar, f[foldDir.length..$]):
+            relativePath(f, projectDir);
+        item.type = GetVisualStudioDefaultTypeByFileExtension(extension(f));
+
+        // filterPrefix  relaDir   | item.filter
+        // -------------------------------------
+        // .             .         | 
+        // normal        .         | normal
+        // .             normal    | normal
+        // normal        normal    | normal\normal
+        item.filter = filterPrefix == "." ? (relaDir == "." ? "" : relaDir)
+            : (relaDir == "." ? filterPrefix : filterPrefix ~ "\\" ~ relaDir); 
+
+        items ~= item;
+        trace("  ", item.type);
+        trace("  ", item.filter);
+        trace("  ", item.relativePath);
     }
 
     writeln();
